@@ -1,5 +1,6 @@
 @page "/events/{Id:guid}/register"
 @using EventEase.Models
+@using System.Linq.Expressions
 @inject EventEase.Services.IEventService EventService
 @inject NavigationManager Nav
 
@@ -20,17 +21,17 @@ else
             <h4>@eventModel.Title</h4>
             <p>@eventModel.Date.ToString("f") — @eventModel.Location</p>
 
-            <EditForm Model="registration" OnValidSubmit="HandleSubmit">
+            <EditForm EditContext="editContext" OnValidSubmit="HandleSubmit">
                 <DataAnnotationsValidator />
                 <ValidationSummary />
                 <div class="mb-2">
                     <label class="form-label">Name</label>
-                    <InputText class="form-control" @bind-Value="registration.Name" />
+                    <InputText class="@FieldClass(() => registration.Name)" @bind-Value="registration.Name" />
                     <ValidationMessage For="@(() => registration.Name)" />
                 </div>
                 <div class="mb-2">
                     <label class="form-label">Email</label>
-                    <InputText class="form-control" @bind-Value="registration.Email" />
+                    <InputText class="@FieldClass(() => registration.Email)" @bind-Value="registration.Email" />
                     <ValidationMessage For="@(() => registration.Email)" />
                 </div>
 
@@ -51,6 +52,17 @@ else
     bool loading = true;
 
     RegistrationModel registration = new RegistrationModel();
+    EditContext? editContext;
+
+    protected override void OnInitialized()
+    {
+        editContext = new EditContext(registration);
+        editContext.OnFieldChanged += (s, e) =>
+        {
+            editContext.Validate();
+            StateHasChanged();
+        };
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -73,13 +85,28 @@ else
 
     async Task HandleSubmit()
     {
+        // validate again server-side (business rules)
+        if (editContext != null && !editContext.Validate())
+            return;
+
+        // save registration
+        registration.RegisteredAt = DateTime.Now;
         await EventService.AddRegistrationAsync(Id, registration);
-        // after successful registration, go back to events list
+
+        // navigate back to events list
         Nav.NavigateTo("/events");
     }
 
     void Cancel()
     {
         Nav.NavigateTo($"/events/{Id}/details");
+    }
+
+    string FieldClass<T>(Expression<Func<T>> accessor)
+    {
+        if (editContext == null) return "form-control";
+        var field = FieldIdentifier.Create(accessor);
+        var hasErrors = editContext.GetValidationMessages(field).Any();
+        return hasErrors ? "form-control is-invalid" : "form-control";
     }
 }
