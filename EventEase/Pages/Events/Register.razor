@@ -1,0 +1,85 @@
+@page "/events/{Id:guid}/register"
+@using EventEase.Models
+@inject EventEase.Services.IEventService EventService
+@inject NavigationManager Nav
+
+<h3>Register for event</h3>
+
+@if (loading)
+{
+    <p>Loading event...</p>
+}
+else if (eventModel == null)
+{
+    <p>Event not found.</p>
+}
+else
+{
+    <div class="card" style="max-width:600px;">
+        <div class="card-body">
+            <h4>@eventModel.Title</h4>
+            <p>@eventModel.Date.ToString("f") — @eventModel.Location</p>
+
+            <EditForm Model="registration" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="mb-2">
+                    <label class="form-label">Name</label>
+                    <InputText class="form-control" @bind-Value="registration.Name" />
+                    <ValidationMessage For="@(() => registration.Name)" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Email</label>
+                    <InputText class="form-control" @bind-Value="registration.Email" />
+                    <ValidationMessage For="@(() => registration.Email)" />
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" type="submit">Submit</button>
+                    <button class="btn btn-secondary" type="button" @onclick="Cancel">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    EventModel? eventModel;
+    bool loading = true;
+
+    RegistrationModel registration = new RegistrationModel();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEventAsync();
+    }
+
+    async Task LoadEventAsync()
+    {
+        loading = true;
+        try
+        {
+            eventModel = await EventService.GetEventAsync(Id);
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task HandleSubmit()
+    {
+        await EventService.AddRegistrationAsync(Id, registration);
+        // after successful registration, go back to events list
+        Nav.NavigateTo("/events");
+    }
+
+    void Cancel()
+    {
+        Nav.NavigateTo($"/events/{Id}/details");
+    }
+}

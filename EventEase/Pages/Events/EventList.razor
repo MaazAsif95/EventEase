@@ -1,0 +1,134 @@
+@page "/events"
+@using System.Text.Json
+@using EventEase.Models
+@using EventEase.Components
+@inject EventEase.Services.IEventService EventService
+@inject NavigationManager Nav
+
+<h3>Events</h3>
+
+
+
+@if (loading)
+{
+    <p>Loading...</p>
+}
+else if (events == null || events.Count == 0)
+{
+    <p>No events found.</p>
+}
+else
+{
+    var paged = events.Skip((CurrentPage - 1) * PageSize).Take(PageSize).ToList();
+
+    <div class="row">
+        @for (int i = 0; i < paged.Count; i++)
+        {
+            var e = paged[i];
+            <div class="col-12 col-md-4 mb-4">
+                <div class="h-100 d-flex flex-column">
+                    <EventCard EventData="e" OnSaved="OnEventSaved" />
+                    <div class="mt-2">
+                        <NavLink class="btn btn-link p-0" href="@($"/events/{e.Id}/registrations")">Details</NavLink>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* Pagination *@
+    @if (TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination">
+                <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="PrevPage">Previous</button>
+                </li>
+                @for (int p = 1; p <= TotalPages; p++)
+                {
+                    <li class="page-item @(p == CurrentPage ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(p)">@p</button>
+                    </li>
+                }
+                <li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="NextPage">Next</button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+<div class="mt-3">
+    <button class="btn btn-primary" @onclick="Refresh">Refresh</button>
+    <NavLink class="btn btn-success ms-2" href="/events/create">Create Event</NavLink>
+</div>
+
+@code {
+    List<EventModel>? events;
+    bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEventsAsync();
+    }
+
+    async Task LoadEventsAsync()
+    {
+        loading = true;
+        try
+        {
+            events = await EventService.GetAllEventsAsync();
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    void ShowDetails(Guid id)
+    {
+        Nav.NavigateTo($"/events/{id}/details");
+    }
+
+    async Task Refresh()
+    {
+        await EventService.RefreshAsync();
+        CurrentPage = 1;
+        await LoadEventsAsync();
+    }
+
+    async ValueTask<ItemsProviderResult<EventModel>> LoadItems(ItemsProviderRequest req)
+    {
+        var list = await EventService.GetAllEventsAsync();
+        var items = list.Skip(req.StartIndex).Take(req.Count).ToList();
+        return new ItemsProviderResult<EventModel>(items, list.Count);
+    }
+
+    async Task OnEventSaved(EventModel model)
+    {
+        await EventService.SaveEventAsync(model);
+        await EventService.RefreshAsync();
+        CurrentPage = 1;
+        await LoadEventsAsync();
+    }
+
+    int PageSize { get; set; } = 6; // 3x2 grid
+    int CurrentPage { get; set; } = 1;
+    int TotalPages => events == null || events.Count == 0 ? 1 : (int)Math.Ceiling(events.Count / (double)PageSize);
+
+    void PrevPage()
+    {
+        if (CurrentPage > 1) CurrentPage--;
+    }
+
+    void NextPage()
+    {
+        if (CurrentPage < TotalPages) CurrentPage++;
+    }
+
+    void GoToPage(int p)
+    {
+        if (p >= 1 && p <= TotalPages) CurrentPage = p;
+    }
+}

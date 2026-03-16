@@ -1,0 +1,102 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using EventEase.Models
+@inject EventEase.Services.IEventService EventService
+
+<div class="card my-2" style="max-width:420px;">
+    @if (!EditMode)
+    {
+        <div class="card-body">
+            <h5 class="card-title">@EventData.Title</h5>
+            <h6 class="card-subtitle mb-2 text-muted">@EventData.Date.ToString("f")</h6>
+            <p class="card-text"><strong>Location:</strong> @EventData.Location</p>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary btn-sm" @onclick="() => EditMode = true">Edit</button>
+                <button class="btn btn-outline-success btn-sm" @onclick="SaveAsync">Save</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card-body">
+                <EditForm Model="EventData" OnValidSubmit="HandleValidSubmit">
+                <DataAnnotationsValidator />
+                <div class="mb-2">
+                    <label class="form-label">Event Name</label>
+                    <InputText class="form-control" @bind-Value="EventData.Title" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Date</label>
+                    <InputDate class="form-control" @bind-Value="EventData.Date" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Location</label>
+                    <InputText class="form-control" @bind-Value="EventData.Location" />
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm" type="submit">Save</button>
+                    <button class="btn btn-secondary btn-sm" type="button" @onclick="CancelEdit">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public bool Compact { get; set; } = true;
+    [Parameter]
+    public EventModel EventData { get; set; } = new EventModel();
+
+    [Parameter]
+    public EventCallback<EventModel> EventDataChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<EventModel> OnSaved { get; set; }
+
+    bool EditMode { get; set; } = false;
+
+    protected override void OnInitialized()
+    {
+        if (EventData == null)
+            EventData = new EventModel();
+
+        if (EventData.Id == Guid.Empty)
+            EventData.Id = Guid.NewGuid();
+    }
+
+    protected override void OnParametersSet()
+    {
+        // ensure EventData is not null
+        if (EventData == null)
+            EventData = new EventModel();
+    }
+
+    // For performance, only notify parent when the user explicitly saves.
+    // Inputs bind directly to EventData when editing.
+
+    async Task HandleValidSubmit()
+    {
+        await SaveAsync();
+        EditMode = false;
+    }
+
+    async Task SaveAsync()
+    {
+        await EventService.SaveEventAsync(EventData);
+        // notify parent that the data has been updated
+        if (EventDataChanged.HasDelegate)
+            await EventDataChanged.InvokeAsync(EventData);
+
+        if (OnSaved.HasDelegate)
+            await OnSaved.InvokeAsync(EventData);
+    }
+
+    void CancelEdit()
+    {
+        EditMode = false;
+    }
+
+    // storage key helpers are now in EventService
+}

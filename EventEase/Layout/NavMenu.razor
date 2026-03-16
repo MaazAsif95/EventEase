@@ -1,0 +1,42 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">EventEase</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+@inject NavigationManager Nav
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <a class="nav-link" href="/events" @onclick:preventDefault="true" @onclick="GoToEvents">Events</a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="/events/create" @onclick:preventDefault="true" @onclick="GoToCreate">Create Event</a>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void GoToEvents()
+    {
+        Nav.NavigateTo("/events");
+    }
+
+    private void GoToCreate()
+    {
+        Nav.NavigateTo("/events/create");
+    }
+}

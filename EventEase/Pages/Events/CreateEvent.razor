@@ -1,0 +1,94 @@
+@page "/events/create"
+@using EventEase.Models
+@using System.Linq.Expressions
+@inject EventEase.Services.IEventService EventService
+@inject NavigationManager Nav
+
+<h3>Create Event</h3>
+
+<div class="card" style="max-width:600px;">
+    <div class="card-body">
+        <EditForm EditContext="editContext" OnValidSubmit="Save" OnInvalidSubmit="OnInvalid">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-2">
+                <label class="form-label">Event Name</label>
+                <InputText class="@FieldClass(() => model.Title)" @bind-Value="model.Title" />
+                <ValidationMessage For="@(() => model.Title)" />
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label">Date</label>
+                <InputDate class="@FieldClass(() => model.Date)" @bind-Value="model.Date" />
+                <ValidationMessage For="@(() => model.Date)" />
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label">Location</label>
+                <InputText class="@FieldClass(() => model.Location)" @bind-Value="model.Location" />
+                <ValidationMessage For="@(() => model.Location)" />
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Create</button>
+                <button class="btn btn-secondary" type="button" @onclick="Cancel">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    EventModel model = new EventModel();
+
+    EditContext? editContext;
+    ValidationMessageStore? messageStore;
+
+    protected override void OnInitialized()
+    {
+        editContext = new EditContext(model);
+        messageStore = new ValidationMessageStore(editContext);
+        editContext.OnFieldChanged += (s, e) =>
+        {
+            // re-run validation for the changed field
+            editContext.Validate();
+            StateHasChanged();
+        };
+    }
+
+    async Task Save()
+    {
+        if (editContext != null && !editContext.Validate())
+            return;
+
+        await EventService.SaveEventAsync(model);
+        Nav.NavigateTo("/events");
+    }
+
+    async Task OnInvalid(EditContext ctx)
+    {
+        // Ensure full-model validation runs so all field messages appear
+        var valid = ctx.Validate();
+        // Trigger re-render so ValidationMessage and field classes update
+        await InvokeAsync(StateHasChanged);
+
+        // If validation cleared during this step, proceed to save immediately
+        if (valid)
+        {
+            await Save();
+        }
+    }
+
+    void Cancel()
+    {
+        Nav.NavigateTo("/events");
+    }
+
+    string FieldClass<T>(Expression<Func<T>> accessor)
+    {
+        if (editContext == null) return "form-control";
+        var field = FieldIdentifier.Create(accessor);
+        var hasErrors = editContext.GetValidationMessages(field).Any();
+        return hasErrors ? "form-control is-invalid" : "form-control";
+    }
+}

@@ -1,0 +1,124 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject EventEase.Services.UserSessionService Session
+@inject IJSRuntime JS
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <header class="p-3 bg-light border-bottom">
+            <div class="container d-flex justify-content-between align-items-center">
+                <h1 class="h4 m-0">EventEase</h1>
+                <div>
+                    @if (Session?.Current?.IsAuthenticated == true)
+                    {
+                        <span class="me-2">Hello, @Session.Current.UserName</span>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="Logout">Logout</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ShowLogin = !ShowLogin">Sign in</button>
+                    }
+                </div>
+            </div>
+
+            @if (ShowLogin)
+            {
+                <div class="container mt-2">
+                    <div class="d-flex gap-2">
+                        <input class="form-control form-control-sm" placeholder="Display name" @bind="LoginName" />
+                        <button class="btn btn-sm btn-primary" @onclick="Login">Sign in</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => ShowLogin = false">Cancel</button>
+                    </div>
+                </div>
+            }
+        </header>
+
+        <article class="content p-4 container">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    bool ShowLogin { get; set; }
+    string LoginName { get; set; } = string.Empty;
+    DotNetObjectReference<MainLayout>? dotNetRef;
+    bool idleStarted = false;
+    int idleTimeoutMs = 1 * 60 * 1000; // 5 minutes
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session != null)
+        {
+            await Session.LoadAsync();
+            Session.OnChanged += SessionChanged;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !idleStarted)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("sessionIdle.start", dotNetRef, idleTimeoutMs);
+                idleStarted = true;
+            }
+            catch { }
+        }
+    }
+
+    void SessionChanged() => InvokeAsync(StateHasChanged);
+
+    async Task Login()
+    {
+        if (string.IsNullOrWhiteSpace(LoginName)) return;
+        await Session.StartAsync(Guid.NewGuid().ToString(), LoginName);
+        ShowLogin = false;
+    }
+
+    async Task Logout()
+    {
+        if (Session != null)
+            await Session.EndAsync();
+    }
+
+    public void Dispose()
+    {
+        if (Session != null)
+            Session.OnChanged -= SessionChanged;
+
+        try
+        {
+            _ = JS.InvokeVoidAsync("sessionIdle.stop");
+        }
+        catch { }
+
+        if (dotNetRef != null)
+        {
+            dotNetRef.Dispose();
+            dotNetRef = null;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnUserActivity()
+    {
+        if (Session != null)
+            await Session.TouchAsync();
+    }
+
+    [JSInvokable]
+    public async Task OnIdleTimeout()
+    {
+        if (Session != null)
+            await Session.EndAsync();
+        // UI update
+        await InvokeAsync(StateHasChanged);
+    }
+}

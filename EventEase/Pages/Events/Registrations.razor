@@ -1,0 +1,89 @@
+@page "/events/{Id:guid}/registrations"
+@using EventEase.Models
+@inject EventEase.Services.IEventService EventService
+@inject NavigationManager Nav
+@inject EventEase.Services.UserSessionService Session
+
+<h3>Registrations</h3>
+
+@if (loading)
+{
+    <p>Loading...</p>
+}
+else if (registrations == null || registrations.Count == 0)
+{
+    <p>No registrations yet.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var r in registrations)
+        {
+            <li class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@r.Name</strong><br />
+                        <small>@r.Email</small>
+                    </div>
+                    <div class="text-end">
+                        <div><small>@r.RegisteredAt.ToString("g")</small></div>
+                        @if (r.Attended)
+                        {
+                            <div class="badge bg-success mt-1">Attended @r.CheckedAt?.ToString("g")</div>
+                            <div class="small text-muted">Checked by: @r.CheckedBy</div>
+                        }
+                        else
+                        {
+                            <div class="mt-1">
+                                <button class="btn btn-sm btn-primary" @onclick="() => MarkAttendance(r.Id)">Mark attended</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+<div class="mt-3">
+    <button class="btn btn-secondary" @onclick="Back">Back</button>
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    List<RegistrationModel>? registrations;
+    bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        loading = true;
+        try
+        {
+            registrations = await EventService.GetRegistrationsAsync(Id);
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task MarkAttendance(Guid regId)
+    {
+        var checker = Session?.Current?.UserName ?? "unknown";
+        await EventService.MarkAttendanceAsync(Id, regId, checker);
+        await LoadAsync();
+    }
+
+    void Back()
+    {
+        Nav.NavigateTo($"/events/{Id}/details", true);
+    }
+}
